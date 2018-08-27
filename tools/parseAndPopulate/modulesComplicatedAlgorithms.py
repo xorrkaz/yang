@@ -7,7 +7,7 @@ import requests
 from tools.utility import log
 from tools.utility.util import get_curr_dir, find_first_file
 
-LOGGER = log.get_logger('')
+LOGGER = log.get_logger(__file__, '/home/miroslav/log/populate/yang.log')
 
 
 class ModulesComplicatedAlgorithms:
@@ -29,10 +29,9 @@ class ModulesComplicatedAlgorithms:
         self.__path = None
         self.__prefix = '{}://{}:{}'.format(protocol, ip, port)
 
-    def parse(self, tree_type_allowed):
-        if tree_type_allowed:
-            LOGGER.info("parsing tree types")
-            self.__resolve_tree_type()
+    def parse(self):
+        LOGGER.info("parsing tree types")
+        self.__resolve_tree_type()
         LOGGER.info("parsing semantic version")
         self.__parse_semver()
         LOGGER.info("parsing dependents")
@@ -322,7 +321,12 @@ class ModulesComplicatedAlgorithms:
             else:
                 data = json.loads(response.content)
                 rev = module['revision'].split('-')
-                date = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                try:
+                    date = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                except Exception:
+                    LOGGER.error('Failed to process revision for {}: (rev: {})'.format(module['name'], rev))
+                    if int(rev[1]) == 2 and int(rev[2]) == 29:
+                        date = datetime(int(rev[0]), int(rev[1]), 28)
                 module_temp = {}
                 module_temp['name'] = module['name']
                 module_temp['revision'] = module['revision']
@@ -339,7 +343,13 @@ class ModulesComplicatedAlgorithms:
                         continue
                     rev = revision.split('-')
                     module_temp['revision'] = revision
-                    module_temp['date'] = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+
+                    try:
+                        module_temp['date'] = datetime(int(rev[0]), int(rev[1]), int(rev[2]))
+                    except Exception:
+                        LOGGER.error('Failed to process revision for {}: (rev: {})'.format(module['name'], rev))
+                        if int(rev[1]) == 2 and int(rev[2]) == 29:
+                            module_temp['date'] = datetime(int(rev[0]), int(rev[1]), 28)
                     module_temp['name'] = mod['name']
                     module_temp['organization'] = mod['organization']
                     module_temp['schema'] = mod.get('schema')

@@ -15,14 +15,14 @@ import tools.utility.log as log
 from tools.api.receiver import send_to_indexing
 from tools.parseAndPopulate.modulesComplicatedAlgorithms import ModulesComplicatedAlgorithms
 
-LOGGER = log.get_logger('populate')
+LOGGER = log.get_logger('populate', '/home/miroslav/log/populate/yang.log')
 
 
 def run_complicated_algorithms():
     complicatedAlgorithms = ModulesComplicatedAlgorithms(yangcatalog_api_prefix, args.credentials,
                                                          args.protocol, args.ip, args.port, args.save_file_dir,
                                                          direc, None)
-    complicatedAlgorithms.parse(True)
+    complicatedAlgorithms.parse()
     complicatedAlgorithms.populate()
 
 
@@ -50,8 +50,8 @@ if __name__ == "__main__":
                         help='Set ip address where the confd is started. Default -> 127.0.0.1')
     parser.add_argument('--api-port', default=8443, type=int,
                         help='Set port where the api is started. Default -> 8443')
-    parser.add_argument('--api-ip', default='127.0.0.1', type=str,
-                        help='Set ip address where the api is started. Default -> 127.0.0.1')
+    parser.add_argument('--api-ip', default='yangcatalog.org', type=str,
+                        help='Set ip address where the api is started. Default -> yangcatalog.org')
     parser.add_argument('--credentials', help='Set authorization parameters username password respectively.'
                                               ' Default parameters are admin admin', nargs=2, default=['admin', 'admin']
                         , type=str)
@@ -142,8 +142,6 @@ if __name__ == "__main__":
                 subprocess.check_call(arguments, stderr=f)
 
     LOGGER.info('Populating yang catalog with data. Starting to add modules')
-    thread = threading.Thread(target=run_complicated_algorithms())
-    thread.start()
     with open('../parseAndPopulate/{}/prepare.json'.format(direc)) as data_file:
         read = data_file.read()
         modules_json = json.loads(read)['module']
@@ -246,12 +244,9 @@ if __name__ == "__main__":
             if response.status_code != 201:
                 LOGGER.warning('Could not send a load-cache request')
 
+            thread = threading.Thread(target=run_complicated_algorithms())
+            thread.start()
 
-        try:
-            shutil.rmtree('../api/cache')
-        except OSError:
-            # Be happy if deleted
-            pass
         else:
             url = (yangcatalog_api_prefix + 'load-cache')
             LOGGER.info('{}'.format(url))
@@ -272,6 +267,12 @@ if __name__ == "__main__":
                              args.credentials, apiIp=args.api_ip,
                              from_api=False, set_key=key,
                              force_indexing=args.force_indexing)
-        shutil.rmtree('../parseAndPopulate/' + direc)
         if thread is not None:
             thread.join()
+        try:
+            shutil.rmtree('../parseAndPopulate/' + direc)
+            shutil.rmtree('../api/cache')
+        except OSError:
+            # Be happy if deleted
+            pass
+

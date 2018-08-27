@@ -20,7 +20,7 @@ from tools.parseAndPopulate.modulesComplicatedAlgorithms import ModulesComplicat
 from tools.utility import messageFactory
 from tools.utility.util import get_curr_dir
 
-LOGGER = log.get_logger('receiver')
+LOGGER = log.get_logger('receiver', '/home/miroslav/log/api/yang.log')
 
 
 # Make a http request on path with json_data
@@ -460,7 +460,7 @@ def make_cache(credentials, response):
     except:
         e = sys.exc_info()[0]
         LOGGER.error('Could not load json to memory-cache. Error: {}'.format(e))
-        return __response_type[0] + '#split#Server error - loading to memory'
+        return __response_type[0] + '#split#Server error-> loading to memory'
     return response
 
 
@@ -529,10 +529,46 @@ def on_request(ch, method, props, body):
                 separated by '#'.
     """
     LOGGER.info('Received request with body {}'.format(body))
+    arguments = body.split('#')
     if body == 'run_ietf':
         final_response = run_ietf()
+    elif 'github' == arguments[-1]:
+        LOGGER.info('Github automated message starting to populate')
+        paths_plus = arguments[arguments.index('repoLocalDir'):]
+        LOGGER.info('paths plus {}'.format(paths_plus))
+        arguments = arguments[:arguments.index('repoLocalDir')]
+        LOGGER.info('arguments {}'.format(arguments))
+        paths = paths_plus[1:-2]
+        LOGGER.info('paths {}'.format(paths))
+        try:
+            for path in paths:
+                with open("log_trigger.txt", "wr") as f:
+                    local_dir = paths_plus[-2]
+                    arguments = arguments + ["--dir", local_dir + "/" + path]
+                    subprocess.check_call(arguments, stderr=f)
+            try:
+                shutil.rmtree(paths_plus[-2])
+            except OSError:
+                # Be happy if deleted
+                pass
+            final_response = __response_type[1]
+        except subprocess.CalledProcessError as e:
+            final_response = __response_type[0]
+            try:
+                shutil.rmtree(paths_plus[-2])
+            except OSError:
+                # Be happy if deleted
+                pass
+            LOGGER.error('check log_trigger.txt Error calling process populate.py {}'.format(e.message))
+        except:
+            final_response = __response_type[0]
+            try:
+                shutil.rmtree(paths_plus[-2])
+            except OSError:
+                # Be happy if deleted
+                pass
+            LOGGER.error("check log_trigger.txt failed to process github message with error {}".format(sys.exc_info()[0]))
     else:
-        arguments = body.split('#')
         global all_modules
         all_modules = None
         if arguments[-3] == 'DELETE':
@@ -562,7 +598,7 @@ def on_request(ch, method, props, body):
                 complicatedAlgorithms = ModulesComplicatedAlgorithms(yangcatalog_api_prefix, credentials,
                                                                      confd_protocol, confd_ip, confdPort,
                                                                      save_file_dir, None, all_modules)
-                complicatedAlgorithms.parse(False)
+                complicatedAlgorithms.parse()
                 complicatedAlgorithms.populate()
 
     LOGGER.info('Receiver is done with id - {} and message = {}'
